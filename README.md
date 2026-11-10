@@ -170,14 +170,69 @@ for each public company. Grading uses a private set of about 20 unseen
 companies with the same tools and the same answer key rules, but different
 names and wording, and scores your 3 points only.
 
-## Homework 3 solution:
-> to students: this is your report, see the homework description.
+## Homework 3 solution
 
 ### My 3 points and rules
-> for each point: why you chose it, your PASS rule in one or two sentences, and the evidence it uses. Quote Fisher where it helps.
+
+I selected Fisher points **4, 7 and 11**. They assess sales capability, employee relations and competitive position through direct stakeholder interviews. Each has a clearly identified knowledgeable interviewee, so three interviews per company provide relevant evidence while staying below the ten-interview limit. This follows Fisher's scuttlebutt approach and avoids the arithmetic and reporting-period risks associated with financial calculations. Points 8 and 9 are also reasonable alternatives; I do not claim that this selection is empirically superior to them because no comparative model benchmark was run.
+
+| Point | Why I chose it | Evidence | PASS / FAIL rule |
+| --- | --- | --- | --- |
+| 4: Above-average sales organization | Customers can directly describe whether sales staff provide practical expertise and support. | `interview(role="customer", topic="sales_team")` | PASS when the interview describes knowledgeable, proactive support beyond merely quoting prices. FAIL when it describes weak product knowledge, inadequate advice or price-list-only service. |
+| 7: Labour and personnel relations | Employees provide direct evidence of treatment, working conditions and staff stability. | `interview(role="current_employee", topic="working_conditions")` | PASS when the evidence supports fair treatment, constructive working conditions and stable personnel relations. FAIL for material weaknesses such as persistent excessive overtime, poor morale, unresolved grievances or high turnover. |
+| 11: Advantage over competitors | Competitors can describe differentiation and the difficulty of winning or retaining the company's customers. | `interview(role="competitor", topic="competitive_edge")` | PASS for meaningful differentiation, hard-to-copy capabilities, switching barriers or strong customer retention. FAIL for interchangeable products, easy imitation or price-only competition. |
+
+The provided data specification states that knowledgeable interviewees agree, so one informed interview per topic is sufficient for this assignment. This is a property of the supplied dataset, rather than a general assumption about real-world investment research. The rules are applied to the meaning of the full interview, including negation, rather than to a list of keywords.
 
 ### Design
-> a visualization of your agent design and one paragraph describing it.
+
+```mermaid
+flowchart TD
+    A[Company's four supplied LangChain tools] --> B[Route three points to informed interviewees]
+    B --> C[Point 4: customer / sales_team]
+    B --> D[Point 7: current_employee / working_conditions]
+    B --> E[Point 11: competitor / competitive_edge]
+    C --> F[LangChain ChatDeepSeek: deepseek-v4-flash]
+    D --> F
+    E --> F
+    F --> G[Parse JSON and validate individual findings]
+    G --> H[Preserve valid verdicts and explanations]
+    G --> I[Retry unresolved findings once]
+    I --> F
+    H --> J[Attach original interview evidence]
+    J --> K[Provided runner writes results.csv]
+    I --> L[Record safe error details if unresolved]
+    L --> K
+```
+
+The agent uses a fixed interview plan and retrieves evidence only through the supplied tools. It sends the three interviews and point-specific rules to `deepseek-v4-flash` through LangChain, requesting JSON verdicts and explanations. Interview text is treated as untrusted evidence rather than instructions. The program validates each finding separately, preserves successful findings, and retries unresolved findings once. Original interview text is attached directly to the summary, avoiding fragile exact-match checks on model-generated quotations. Up to three companies are processed concurrently. Tool/API failures are isolated per company and reported using exception types and HTTP status codes, without raw error messages or credentials. Unresolved points remain missing and are counted as incorrect by the original scorer; they are not converted into fabricated FAIL verdicts. The supplied tools, runner and scoring code are unchanged. The analysis code does not read the answer key or access company files directly.
 
 ### Results
-> your point score on `public_test`, the companies where your verdicts disagree with the public answers, and why.
+
+The revised agent was run on the 20 public companies in Colab. The resulting `results (1).csv` was independently compared with the supplied `public_test/ground_truth.json`.
+
+| Metric | Result |
+| --- | --- |
+| Companies evaluated | 20 |
+| Point 4 correct | 20 / 20 |
+| Point 7 correct | 20 / 20 |
+| Point 11 correct | 20 / 20 |
+| Total correct verdicts | 60 / 60 |
+| True-PASS verdicts correctly classified | 42 / 42 |
+| True-FAIL verdicts correctly classified | 18 / 18 |
+| Balanced accuracy | **100%** |
+| Companies with disagreements | None |
+| Missing verdicts or recorded errors | 0 |
+| Interviews used | 3 per company; 60 total |
+
+Balanced accuracy is the mean of PASS recall and FAIL recall: `(42/42 + 18/18) / 2 = 100%`. There are no public-test disagreements to explain. The summaries contain evidence and explanations for both PASS and FAIL decisions, so this result is not an all-one-class fallback. This reports one successful public-test run, not an average of three runs or a guarantee of performance on private companies. No comparative API test was conducted for points 8 and 9.
+
+### Reproduction and credentials
+
+Install the packages in `requirements.txt`, configure `DEEPSEEK_API_KEY` privately, and run:
+
+```bash
+python3 hw3.py --data-folder public_test
+```
+
+For Colab, use the accompanying notebook and store the key in Colab Secrets under `DEEPSEEK_API_KEY`, with notebook access enabled. The notebook passes it to the process environment. Never commit an API key or `.env`. The required model remains `deepseek-v4-flash`; no alternative model or external company data source is used.
